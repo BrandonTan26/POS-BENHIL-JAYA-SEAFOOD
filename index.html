@@ -1899,19 +1899,94 @@ function showReceipt(tx){
   openModal('receiptModal');
 }
 
-function printReceipt(){
-  const content = document.getElementById('receiptContent').innerHTML;
-  document.getElementById('printArea').innerHTML = content;
-  document.getElementById('printArea').style.display = 'block';
-  window.print();
-  setTimeout(()=>{document.getElementById('printArea').style.display = 'none'},500);
-}
+function printReceipt(tx) {
+    const size = settings.receiptSize || '58';
+    const width = size === '80' ? '80mm' : '58mm';
 
-function reprintReceipt(){
-  if(state.currentTx){
-    closeModal('detailModal');
-    showReceipt(state.currentTx);
-  }
+    const itemsHtml = tx.items.map(i => `
+        <div style="margin-bottom:4px;">
+            <div style="font-weight:bold; font-size:12px;">${i.name}</div>
+            <div style="display:flex; justify-content:space-between; font-size:11px;">
+                <span>&nbsp;&nbsp;${i.qty} x ${formatRp(i.price)}</span>
+                <span>${formatRp(i.qty * i.price)}</span>
+            </div>
+            ${i.note ? `<div style="font-size:10px; font-style:italic; color:#555;">&nbsp;&nbsp;* ${i.note}</div>` : ''}
+        </div>
+    `).join('');
+
+    const receiptHTML = `
+        <html>
+        <head>
+            <title>Struk ${tx.invoice}</title>
+            <style>
+                @page { size: ${width} auto; margin: 0; }
+                body { 
+                    width: ${width}; 
+                    margin: 0; 
+                    padding: 5mm; 
+                    font-family: 'Courier New', Courier, monospace; 
+                    font-size: 12px; 
+                    color: #000; 
+                }
+                .center { text-align: center; }
+                .bold { font-weight: bold; }
+                .line { border-top: 1px dashed #000; margin: 4px 0; }
+                .row { display: flex; justify-content: space-between; margin-bottom: 2px; }
+            </style>
+        </head>
+        <body>
+            <div class="center bold" style="font-size:14px;">${settings.restoName}</div>
+            <div class="center" style="font-size:10px;">${settings.restoAddress}</div>
+            <div class="center" style="font-size:10px;">Telp: ${settings.restoPhone}</div>
+            <div class="line"></div>
+            <div class="row"><span>No: ${tx.invoice}</span></div>
+            <div class="row"><span>${tx.dateStr} ${tx.timeStr}</span></div>
+            <div class="row"><span>Meja: ${tx.table}</span></div>
+            <div class="row"><span>Kasir: Admin</span></div>
+            <div class="line"></div>
+            ${itemsHtml}
+            <div class="line"></div>
+            <div class="row"><span>Subtotal</span><span>${formatRp(tx.subtotal)}</span></div>
+            ${tx.discount > 0 ? `<div class="row"><span>Diskon</span><span>-${formatRp(tx.discount)}</span></div>` : ''}
+            <div class="row"><span>Pajak (${settings.taxRate}%)</span><span>${formatRp(tx.tax)}</span></div>
+            <div class="row"><span>Service (${settings.serviceRate}%)</span><span>${formatRp(tx.service)}</span></div>
+            <div class="line"></div>
+            <div class="row bold" style="font-size:14px;"><span>TOTAL</span><span>${formatRp(tx.total)}</span></div>
+            <div class="line"></div>
+            <div class="row"><span>Bayar (${tx.paymentMethod})</span><span>${formatRp(tx.cashReceived)}</span></div>
+            ${tx.paymentMethod === 'CASH' ? `<div class="row"><span>Kembali</span><span>${formatRp(tx.change)}</span></div>` : ''}
+            <div class="line"></div>
+            <div class="center" style="margin-top:8px;">
+                <div class="bold">Terima Kasih!</div>
+                <div style="font-size:10px;">Selamat menikmati hidangan</div>
+            </div>
+        </body>
+        </html>
+    `;
+
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+
+    const iframeDoc = iframe.contentWindow.document;
+    iframeDoc.open();
+    iframeDoc.write(receiptHTML);
+    iframeDoc.close();
+
+    iframe.onload = function() {
+        setTimeout(() => {
+            iframe.contentWindow.focus();
+            iframe.contentWindow.print();
+            setTimeout(() => {
+                document.body.removeChild(iframe);
+            }, 1000);
+        }, 250);
+    };
 }
 
 /* ==================== HISTORY ==================== */
