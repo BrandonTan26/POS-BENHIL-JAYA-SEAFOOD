@@ -781,14 +781,6 @@ body {
             <span class="label">Diskon</span>
             <span class="value" id="discountDisplay">- Rp 0</span>
           </div>
-          <div class="summary-row">
-            <span class="label">Pajak (<span id="taxRateDisplay">0</span>%)</span>
-            <span class="value" id="taxDisplay">Rp 0</span>
-          </div>
-          <div class="summary-row">
-            <span class="label">Service (<span id="serviceRateDisplay">0</span>%)</span>
-            <span class="value" id="serviceDisplay">Rp 0</span>
-          </div>
           <div class="summary-row total">
             <span class="label">TOTAL</span>
             <span class="value" id="totalDisplay">Rp 0</span>
@@ -847,7 +839,7 @@ body {
       </div>
       <div style="overflow-x:auto;">
         <table class="data-table">
-          <thead><tr><th>Invoice</th><th>Tanggal</th><th>Meja</th><th>Items</th><th>Subtotal</th><th>Diskon</th><th>Pajak</th><th>Total</th><th>Bayar</th><th>Aksi</th></tr></thead>
+          <thead><tr><th>Invoice</th><th>Tanggal</th><th>Meja</th><th>Items</th><th>Subtotal</th><th>Diskon</th><th>Total</th><th>Bayar</th><th>Aksi</th></tr></thead>
           <tbody id="historyBody"></tbody>
         </table>
       </div>
@@ -887,17 +879,6 @@ body {
         <div class="form-group">
           <label class="form-label">Alamat</label>
           <textarea class="form-textarea" id="setRestoAddress">Anyer, Serang, Banten</textarea>
-        </div>
-      </div>
-      <div class="settings-section">
-        <h4>💰 Pajak & Service</h4>
-        <div class="setting-row">
-          <div><strong>Pajak (PPN)</strong><br><small style="color:var(--text-tertiary)">Persentase pajak otomatis</small></div>
-          <input type="number" class="form-input" id="setTaxRate" value="10" style="width:100px;text-align:center;" onchange="saveSettings()">
-        </div>
-        <div class="setting-row">
-          <div><strong>Service Charge</strong><br><small style="color:var(--text-tertiary)">Biaya layanan</small></div>
-          <input type="number" class="form-input" id="setServiceRate" value="5" style="width:100px;text-align:center;" onchange="saveSettings()">
         </div>
       </div>
       <div class="settings-section">
@@ -1068,6 +1049,9 @@ body {
   </div>
 </div>
 
+<!-- Hidden receipt container for printing -->
+<div id="receiptContainer" style="display:none;position:fixed;left:-9999px;top:0;"></div>
+
 <script>
 const SHEET_ID = '18SxUVyZMAl0WwTnziBr1aBnkPNWltZZ42OGznnFJ2wU';
 const SHEET_BASE = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json`;
@@ -1087,8 +1071,6 @@ const defaultSettings = {
   restoName: 'BENHIL JAYA SEAFOOD ANYER',
   restoPhone: '081906370107',
   restoAddress: 'Anyer, Serang, Banten',
-  taxRate: 10,
-  serviceRate: 5,
   receiptSize: '58',
   darkMode: false
 };
@@ -1285,7 +1267,6 @@ function renderProducts() {
   }
 
   grid.innerHTML = filtered.map(p => {
-    // PAKAI EMOJI BERDASARKAN KATEGORI AJA
     const emoji = categoryIcons[p.KATEGORI] || '🍽️';
     const cls = categoryClassMap[p.KATEGORI] || 'sayur';
     const price = p.HARGA ? formatRp(p.HARGA) : 'Hubungi Kasir';
@@ -1411,23 +1392,14 @@ function getCartTotals() {
   const discPct = parseFloat(document.getElementById('discountPercent').value) || 0;
   const discNom = parseFloat(document.getElementById('discountNominal').value) || 0;
   const discount = (subtotal * discPct / 100) + discNom;
-  const afterDiscount = Math.max(0, subtotal - discount);
-  const taxRate = settings.taxRate || 10;
-  const serviceRate = settings.serviceRate || 5;
-  const tax = afterDiscount * taxRate / 100;
-  const service = afterDiscount * serviceRate / 100;
-  const total = afterDiscount + tax + service;
-  return { subtotal, discount, tax, service, total, taxRate, serviceRate };
+  const total = Math.max(0, subtotal - discount);
+  return { subtotal, discount, total };
 }
 
 function updateCartTotals() {
   const t = getCartTotals();
   document.getElementById('subtotalDisplay').textContent = formatRp(t.subtotal);
   document.getElementById('discountDisplay').textContent = '- ' + formatRp(t.discount);
-  document.getElementById('taxRateDisplay').textContent = t.taxRate;
-  document.getElementById('taxDisplay').textContent = formatRp(t.tax);
-  document.getElementById('serviceRateDisplay').textContent = t.serviceRate;
-  document.getElementById('serviceDisplay').textContent = formatRp(t.service);
   document.getElementById('totalDisplay').textContent = formatRp(t.total);
 }
 
@@ -1622,8 +1594,6 @@ function processPayment() {
     items: [...cart],
     subtotal: totals.subtotal,
     discount: totals.discount,
-    tax: totals.tax,
-    service: totals.service,
     total: totals.total,
     paymentMethod: selectedPayment,
     cashReceived: selectedPayment === 'CASH' ? parseInt(document.getElementById('cashReceivedValue').value) : totals.total,
@@ -1656,18 +1626,19 @@ function processPayment() {
   showToast(`Pembayaran berhasil! ${invoice}`, 'success');
 }
 
+// === FIXED PRINT FUNCTION - PRINT STRUK ONLY ===
 function printReceipt(tx) {
   const size = settings.receiptSize || '58';
   const width = size === '80' ? '80mm' : '58mm';
 
   const itemsHtml = tx.items.map(i => `
-    <div style="margin-bottom:4px;">
-      <div style="font-weight:bold; font-size:12px;">${i.name}</div>
+    <div style="margin:4px 0;">
+      <div style="font-weight:bold;">${i.name}</div>
       <div style="display:flex; justify-content:space-between; font-size:11px;">
-        <span>&nbsp;&nbsp;${i.qty} x ${formatRp(i.price)}</span>
+        <span>${i.qty} x ${formatRp(i.price)}</span>
         <span>${formatRp(i.qty * i.price)}</span>
       </div>
-      ${i.note ? `<div style="font-size:10px; font-style:italic; color:#555;">&nbsp;&nbsp;* ${i.note}</div>` : ''}
+      ${i.note ? `<div style="font-size:10px; font-style:italic;">* ${i.note}</div>` : ''}
     </div>
   `).join('');
 
@@ -1676,20 +1647,22 @@ function printReceipt(tx) {
     <head>
       <title>Struk ${tx.invoice}</title>
       <style>
-        @page { size: ${width} auto; margin: 0; }
-        body { 
-          width: ${width}; 
-          margin: 0; 
-          padding: 5mm; 
-          font-family: 'Courier New', Courier, monospace; 
-          font-size: 12px; 
-          color: #000; 
-          background: #fff;
+        @media print {
+          @page { size: ${width} auto; margin: 0; }
+          body { 
+            width: ${width}; 
+            margin: 0; 
+            padding: 5mm; 
+            font-family: 'Courier New', Courier, monospace; 
+            font-size: 12px; 
+            color: #000; 
+            background: #fff;
+          }
+          .center { text-align: center; }
+          .bold { font-weight: bold; }
+          .line { border-top: 1px dashed #000; margin: 4px 0; }
+          .row { display: flex; justify-content: space-between; margin-bottom: 2px; }
         }
-        .center { text-align: center; }
-        .bold { font-weight: bold; }
-        .line { border-top: 1px dashed #000; margin: 4px 0; }
-        .row { display: flex; justify-content: space-between; margin-bottom: 2px; }
       </style>
     </head>
     <body>
@@ -1700,14 +1673,8 @@ function printReceipt(tx) {
       <div class="row"><span>No: ${tx.invoice}</span></div>
       <div class="row"><span>${tx.dateStr} ${tx.timeStr}</span></div>
       <div class="row"><span>Meja: ${tx.table}</span></div>
-      <div class="row"><span>Kasir: Admin</span></div>
       <div class="line"></div>
       ${itemsHtml}
-      <div class="line"></div>
-      <div class="row"><span>Subtotal</span><span>${formatRp(tx.subtotal)}</span></div>
-      ${tx.discount > 0 ? `<div class="row"><span>Diskon</span><span>-${formatRp(tx.discount)}</span></div>` : ''}
-      <div class="row"><span>Pajak (${settings.taxRate}%)</span><span>${formatRp(tx.tax)}</span></div>
-      <div class="row"><span>Service (${settings.serviceRate}%)</span><span>${formatRp(tx.service)}</span></div>
       <div class="line"></div>
       <div class="row bold" style="font-size:14px;"><span>TOTAL</span><span>${formatRp(tx.total)}</span></div>
       <div class="line"></div>
@@ -1716,34 +1683,24 @@ function printReceipt(tx) {
       <div class="line"></div>
       <div class="center" style="margin-top:8px;">
         <div class="bold">Terima Kasih!</div>
-        <div style="font-size:10px;">Selamat menikmati hidangan</div>
-        <div style="font-size:10px;">di Benhil Jaya Seafood</div>
+        <div style="font-size:10px;">Selamat menikmati</div>
       </div>
+      <script>
+        window.onload = function() {
+          window.print();
+          window.onafterprint = function() {
+            window.close();
+          };
+        };
+      <\/script>
     </body>
     </html>
   `;
 
-  const iframe = document.createElement('iframe');
-  iframe.style.position = 'fixed';
-  iframe.style.right = '0';
-  iframe.style.bottom = '0';
-  iframe.style.width = '0';
-  iframe.style.height = '0';
-  iframe.style.border = '0';
-  document.body.appendChild(iframe);
-
-  const iframeDoc = iframe.contentWindow.document;
-  iframeDoc.open();
-  iframeDoc.write(receiptHTML);
-  iframeDoc.close();
-
-  iframe.onload = function() {
-    setTimeout(() => {
-      iframe.contentWindow.focus();
-      iframe.contentWindow.print();
-      setTimeout(() => { document.body.removeChild(iframe); }, 1500);
-    }, 300);
-  };
+  // Buka window baru untuk print
+  const printWindow = window.open('', '_blank', `width=${size === '80' ? '400' : '300'},height=600`);
+  printWindow.document.write(receiptHTML);
+  printWindow.document.close();
 }
 
 function reprintReceipt(invoice) {
@@ -1825,7 +1782,7 @@ function renderHistory() {
   if (dateFilter) filtered = filtered.filter(t => t.date.startsWith(dateFilter));
   if (search) filtered = filtered.filter(t => t.invoice.toLowerCase().includes(search) || t.table.toLowerCase().includes(search));
   document.getElementById('historyBody').innerHTML = filtered.length === 0
-    ? '<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--text-tertiary);">Belum ada transaksi</td></tr>'
+    ? '<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text-tertiary);">Belum ada transaksi</td></tr>'
     : filtered.map(t => `
       <tr>
         <td><strong>${t.invoice}</strong></td>
@@ -1834,7 +1791,6 @@ function renderHistory() {
         <td>${t.items.length} item</td>
         <td>${formatRp(t.subtotal)}</td>
         <td style="color:var(--accent-danger);">${t.discount > 0 ? '-' + formatRp(t.discount) : '-'}</td>
-        <td>${formatRp(t.tax)}</td>
         <td><strong>${formatRp(t.total)}</strong></td>
         <td><span class="status-badge success">${t.paymentMethod}</span></td>
         <td><button class="btn btn-secondary" style="padding:4px 12px;font-size:11px;" onclick="reprintReceipt('${t.invoice}')">🖨️ Print</button></td>
@@ -1895,7 +1851,6 @@ document.querySelectorAll('.modal-overlay').forEach(m => {
   m.addEventListener('click', e => { if (e.target === m) m.classList.remove('active'); });
 });
 
-// === FIXED: TOGGLE DARK MODE ===
 function toggleTheme() {
   settings.darkMode = !settings.darkMode;
   applyTheme();
@@ -1920,8 +1875,6 @@ function saveSettings() {
   settings.restoName = document.getElementById('setRestoName')?.value || settings.restoName;
   settings.restoPhone = document.getElementById('setRestoPhone')?.value || settings.restoPhone;
   settings.restoAddress = document.getElementById('setRestoAddress')?.value || settings.restoAddress;
-  settings.taxRate = parseFloat(document.getElementById('setTaxRate')?.value) || 10;
-  settings.serviceRate = parseFloat(document.getElementById('setServiceRate')?.value) || 5;
   settings.receiptSize = document.getElementById('setReceiptSize')?.value || '58';
   localStorage.setItem('bjs_settings', JSON.stringify(settings));
   updateCartTotals();
@@ -1931,8 +1884,6 @@ function loadSettingsUI() {
   document.getElementById('setRestoName').value = settings.restoName;
   document.getElementById('setRestoPhone').value = settings.restoPhone;
   document.getElementById('setRestoAddress').value = settings.restoAddress;
-  document.getElementById('setTaxRate').value = settings.taxRate;
-  document.getElementById('setServiceRate').value = settings.serviceRate;
   document.getElementById('setReceiptSize').value = settings.receiptSize;
   applyTheme();
 }
