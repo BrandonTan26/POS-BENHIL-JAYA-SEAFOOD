@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="theme-color" content="#0f172a">
+<meta name="theme-color" content="#0f172a"
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="description" content="BENHIL JAYA SEAFOOD POS - Professional Point of Sale System">
@@ -1049,9 +1049,6 @@ body {
   </div>
 </div>
 
-<!-- Hidden receipt container for printing -->
-<div id="receiptContainer" style="display:none;position:fixed;left:-9999px;top:0;"></div>
-
 <script>
 const SHEET_ID = '18SxUVyZMAl0WwTnziBr1aBnkPNWltZZ42OGznnFJ2wU';
 const SHEET_BASE = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json`;
@@ -1076,7 +1073,6 @@ const defaultSettings = {
 };
 settings = { ...defaultSettings, ...settings };
 
-// === EMOJI BERDASARKAN KATEGORI (SIMPLE!) ===
 const categoryIcons = {
   'IKAN': '🐟',
   'KEPITING': '🦀',
@@ -1119,7 +1115,6 @@ function showToast(msg, type='info') {
   setTimeout(() => { t.style.opacity='0'; t.style.transform='translateX(100%)'; setTimeout(()=>t.remove(),300); }, 3000);
 }
 
-// === SAMPLE PRODUCTS LENGKAP ===
 const SAMPLE_PRODUCTS = [
   { KODE_PRODUK: 'IK001', KATEGORI: 'IKAN', NAMA_MENU: 'KAKAP SAOS PADANG', HARGA: 14000, SATUAN: 'ONS' },
   { KODE_PRODUK: 'IK002', KATEGORI: 'IKAN', NAMA_MENU: 'KAKAP ASAM MANIS', HARGA: 14000, SATUAN: 'ONS' },
@@ -1626,81 +1621,104 @@ function processPayment() {
   showToast(`Pembayaran berhasil! ${invoice}`, 'success');
 }
 
-// === FIXED PRINT FUNCTION - PRINT STRUK ONLY ===
+// === PRINT FUNCTION - SIMPLE & RELIABLE ===
 function printReceipt(tx) {
   const size = settings.receiptSize || '58';
   const width = size === '80' ? '80mm' : '58mm';
 
   const itemsHtml = tx.items.map(i => `
-    <div style="margin:4px 0;">
+    <div style="margin:3px 0; font-size:11px;">
       <div style="font-weight:bold;">${i.name}</div>
-      <div style="display:flex; justify-content:space-between; font-size:11px;">
+      <div style="display:flex; justify-content:space-between;">
         <span>${i.qty} x ${formatRp(i.price)}</span>
         <span>${formatRp(i.qty * i.price)}</span>
       </div>
-      ${i.note ? `<div style="font-size:10px; font-style:italic;">* ${i.note}</div>` : ''}
+      ${i.note ? `<div style="font-size:9px; font-style:italic;">* ${i.note}</div>` : ''}
     </div>
   `).join('');
 
   const receiptHTML = `
+    <!DOCTYPE html>
     <html>
     <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <title>Struk ${tx.invoice}</title>
       <style>
         @media print {
           @page { size: ${width} auto; margin: 0; }
-          body { 
-            width: ${width}; 
-            margin: 0; 
-            padding: 5mm; 
-            font-family: 'Courier New', Courier, monospace; 
-            font-size: 12px; 
-            color: #000; 
-            background: #fff;
-          }
-          .center { text-align: center; }
-          .bold { font-weight: bold; }
-          .line { border-top: 1px dashed #000; margin: 4px 0; }
-          .row { display: flex; justify-content: space-between; margin-bottom: 2px; }
+          body { margin: 0; padding: 3mm; }
+          .no-print { display: none; }
+        }
+        body { 
+          width: ${width};
+          margin: 0 auto;
+          padding: 3mm;
+          font-family: 'Courier New', Courier, monospace;
+          font-size: 11px;
+          color: #000;
+          background: #fff;
+        }
+        .center { text-align: center; }
+        .bold { font-weight: bold; }
+        .line { border-top: 1px dashed #000; margin: 3px 0; }
+        .row { display: flex; justify-content: space-between; }
+        .btn-print {
+          position: fixed;
+          top: 10px;
+          right: 10px;
+          padding: 10px 20px;
+          background: #3b82f6;
+          color: white;
+          border: none;
+          border-radius: 8px;
+          font-size: 14px;
+          cursor: pointer;
+          z-index: 9999;
         }
       </style>
     </head>
     <body>
-      <div class="center bold" style="font-size:14px;">${settings.restoName}</div>
-      <div class="center" style="font-size:10px;">${settings.restoAddress}</div>
-      <div class="center" style="font-size:10px;">Telp: ${settings.restoPhone}</div>
+      <button class="btn-print no-print" onclick="window.print()">🖨️ CETAK STRUK</button>
+      <div class="center bold" style="font-size:13px;">${settings.restoName}</div>
+      <div class="center" style="font-size:9px;">${settings.restoAddress}</div>
+      <div class="center" style="font-size:9px;">Telp: ${settings.restoPhone}</div>
       <div class="line"></div>
-      <div class="row"><span>No: ${tx.invoice}</span></div>
-      <div class="row"><span>${tx.dateStr} ${tx.timeStr}</span></div>
-      <div class="row"><span>Meja: ${tx.table}</span></div>
+      <div style="font-size:10px;">No: ${tx.invoice}</div>
+      <div style="font-size:10px;">${tx.dateStr} ${tx.timeStr}</div>
+      <div style="font-size:10px;">Meja: ${tx.table}</div>
       <div class="line"></div>
       ${itemsHtml}
       <div class="line"></div>
-      <div class="row bold" style="font-size:14px;"><span>TOTAL</span><span>${formatRp(tx.total)}</span></div>
+      <div class="row bold" style="font-size:12px;"><span>TOTAL</span><span>${formatRp(tx.total)}</span></div>
       <div class="line"></div>
-      <div class="row"><span>Bayar (${tx.paymentMethod})</span><span>${formatRp(tx.cashReceived)}</span></div>
-      ${tx.paymentMethod === 'CASH' ? `<div class="row"><span>Kembali</span><span>${formatRp(tx.change)}</span></div>` : ''}
+      <div class="row" style="font-size:10px;"><span>Bayar (${tx.paymentMethod})</span><span>${formatRp(tx.cashReceived)}</span></div>
+      ${tx.paymentMethod === 'CASH' ? `<div class="row" style="font-size:10px;"><span>Kembali</span><span>${formatRp(tx.change)}</span></div>` : ''}
       <div class="line"></div>
-      <div class="center" style="margin-top:8px;">
+      <div class="center" style="margin-top:6px; font-size:10px;">
         <div class="bold">Terima Kasih!</div>
-        <div style="font-size:10px;">Selamat menikmati</div>
       </div>
       <script>
-        window.onload = function() {
-          window.print();
-          window.onafterprint = function() {
-            window.close();
-          };
-        };
+        // Auto trigger print setelah halaman load
+        window.addEventListener('load', function() {
+          setTimeout(function() {
+            window.print();
+          }, 500);
+        });
       <\/script>
     </body>
     </html>
   `;
 
-  // Buka window baru untuk print
-  const printWindow = window.open('', '_blank', `width=${size === '80' ? '400' : '300'},height=600`);
-  printWindow.document.write(receiptHTML);
-  printWindow.document.close();
+  // Buka di tab/window baru
+  const printWindow = window.open('', '_blank', 'width=400,height=600');
+  if (printWindow) {
+    printWindow.document.write(receiptHTML);
+    printWindow.document.close();
+  } else {
+    // Fallback: tampilkan alert jika popup diblokir
+    alert('Popup diblokir! Izinkan popup untuk website ini agar bisa print.');
+  }
 }
 
 function reprintReceipt(invoice) {
