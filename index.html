@@ -1265,7 +1265,14 @@ function renderProducts() {
     const emoji = categoryIcons[p.KATEGORI] || '🍽️';
     const cls = categoryClassMap[p.KATEGORI] || 'sayur';
     const price = p.HARGA ? formatRp(p.HARGA) : 'Hubungi Kasir';
-    const fotoUrl = p['LINK FOTO'] || p.LINK_FOTO || '';
+    let fotoUrl = p['LINK FOTO'] || p.LINK_FOTO || '';
+
+if (fotoUrl.includes('drive.google.com/file/d/')) {
+    const match = fotoUrl.match(/\/d\/([^/]+)/);
+    if (match) {
+        fotoUrl = `https://drive.google.com/thumbnail?id=${match[1]}&sz=w1000`;
+    }
+}
     
     return `
       <div class="product-card fade-in" onclick="addToCart(${p._id})">
